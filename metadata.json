@@ -1,0 +1,5 @@
+{
+  "name": "Cadastro de Clientes",
+  "description": "Um sistema simples para cadastrar e gerenciar clientes, armazenando nome e telefone.",
+  "requestFramePermissions": []
+}
