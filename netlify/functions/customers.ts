@@ -1,7 +1,27 @@
 import type { Handler } from "@netlify/functions";
 import { db } from "../../db/db";
 import { customers } from "../../db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
+
+// Função para garantir que a tabela de clientes exista no banco de dados.
+// Isso evita erros na primeira execução ou em um banco de dados vazio.
+const ensureTableExists = async () => {
+  try {
+    // Usamos SQL bruto porque o Drizzle ORM não tem um "CREATE TABLE IF NOT EXISTS" nativo.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "customers" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "name" text NOT NULL,
+        "phone" text NOT NULL
+      );
+    `);
+  } catch (error) {
+    console.error("Erro ao tentar criar ou verificar a tabela 'customers':", error);
+    // Propaga o erro original para que a mensagem de erro detalhada seja enviada ao frontend.
+    throw error;
+  }
+};
+
 
 export const handler: Handler = async (event) => {
   // Validação da variável de ambiente do banco de dados.
@@ -19,6 +39,9 @@ export const handler: Handler = async (event) => {
   const { httpMethod, body } = event;
 
   try {
+    // Garante que a tabela existe antes de qualquer operação.
+    await ensureTableExists();
+    
     switch (httpMethod) {
       case "GET": {
         const allCustomers = await db.query.customers.findMany({
@@ -72,11 +95,14 @@ export const handler: Handler = async (event) => {
           body: JSON.stringify({ error: "Método não permitido." }),
         };
     }
-  } catch (error) {
-    console.error("Erro no banco de dados:", error);
+  } catch (error: any) {
+    console.error("Erro no handler:", error);
+    // Retorna uma mensagem de erro mais detalhada para o frontend.
+    const errorMessage = error.message || "Erro interno do servidor.";
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Erro interno do servidor." }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: errorMessage }),
     };
   }
 };
